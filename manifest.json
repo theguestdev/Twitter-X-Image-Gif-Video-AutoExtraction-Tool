@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Twitter Image \u2192 Orig",
+  "version": "1.4",
+  "description": "Auto-opens Twitter/X images, videos, and GIFs at original quality.",
+  "permissions": [
+    "webNavigation",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.x.com/*",
+    "*://*.twitter.com/*",
+    "*://cdn.syndication.twimg.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.x.com/*/status/*",
+        "*://*.twitter.com/*/status/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
