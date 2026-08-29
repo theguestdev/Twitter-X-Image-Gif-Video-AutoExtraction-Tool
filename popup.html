@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Twitter Image -> Orig</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #15202b;
+    --text: #e7e9ea;
+    --muted: #8899a6;
+    --on: #00ba7c;
+    --off: #f4212e;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, sans-serif;
+  }
+
+  .container {
+    width: 140px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .toggle-circle {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    background: var(--off);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, box-shadow 160ms ease, transform 80ms ease;
+    user-select: none;
+  }
+
+  .toggle-circle:hover { box-shadow: 0 0 0 4px rgba(255,255,255,0.06); }
+  .toggle-circle:active { transform: scale(0.94); }
+  .toggle-circle.is-on { background: var(--on); }
+  .toggle-circle.is-on:hover { box-shadow: 0 0 0 4px rgba(0,186,124,0.18); }
+
+  .version {
+    font-size: 10px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <button id="toggle"
+            class="toggle-circle"
+            role="switch"
+            aria-checked="false"
+            aria-label="Toggle extension on or off"
+            title="Click to turn extension on/off">
+      OFF
+    </button>
+    <div class="version">v2.0</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

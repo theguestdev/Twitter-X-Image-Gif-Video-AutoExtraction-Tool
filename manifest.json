@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Twitter Image \u2192 Orig",
-  "version": "1.7",
-  "description": "Auto-opens Twitter/X images, videos, and GIFs at original quality.",
+  "name": "Twitter Image -> Orig",
+  "version": "2.0.0",
+  "description": "Auto-opens Twitter/X images, videos, and GIFs at original quality. Includes a popup on/off switch.",
   "permissions": [
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "host_permissions": [
     "*://*.x.com/*",
@@ -13,6 +14,21 @@
   ],
   "background": {
     "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
   },
   "content_scripts": [
     {

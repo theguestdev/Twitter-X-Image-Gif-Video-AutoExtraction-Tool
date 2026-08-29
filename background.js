@@ -15,6 +15,55 @@
 (function(){
 'use strict';
 
+// ============================================================
+// ON/OFF GATE — single source of truth
+// ============================================================
+//
+// All extension behavior is gated on `chrome.storage.local.enabled`.
+// When `enabled === false`:
+//   - The message handler returns `{ success: false, disabled: true }`
+//     immediately and does NOT fetch syndication, does NOT open tabs,
+//     does NOT close the sender tab. (No phantom operations.)
+//   - The service worker stays alive only long enough to refuse the
+//     message, then goes idle.
+//
+// The flag is read on every message receipt (never cached in a
+// variable) so a popup toggle takes effect on the very next request,
+// even mid-flight. chrome.storage reads are sync-fast from the SW's
+// perspective because the SW owns the storage.
+//
+// Default on install: enabled = true (matches original v1.7 behavior).
+//
+// NOTE: the toolbar icon is a single black-and-white design and does
+// NOT change between on/off states (per user request — less
+// distracting). State is visible only by opening the popup.
+
+const STORAGE_KEY = 'enabled';
+const DEFAULT_ENABLED = true;
+
+// Read the current enabled flag from storage. Always returns a fresh
+// read — never cached. Resolves to a boolean.
+function isEnabled(){
+  return new Promise((resolve) => {
+    try{
+      chrome.storage.local.get([STORAGE_KEY], (res) => {
+        const v = res && typeof res[STORAGE_KEY] === 'boolean'
+          ? res[STORAGE_KEY]
+          : DEFAULT_ENABLED;
+        resolve(v);
+      });
+    }catch(e){
+      // Storage unavailable — fail open (default-on) to preserve
+      // original v1.7 behavior. Defensive against test/mocked envs.
+      resolve(DEFAULT_ENABLED);
+    }
+  });
+}
+
+// ============================================================
+// Original media extraction logic (v1.7, unchanged)
+// ============================================================
+
 // The syndication API REQUIRES a `token` query parameter — without it
 // every video/GIF tweet returns 200 OK with an empty `{}` body (the original
 // cause of "videos and gifs not working"). Any non-empty token value works;
@@ -144,13 +193,36 @@ function openUrls(urls){
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // ============================================================
+  // ON/OFF GATE — checked FIRST on every message.
+  // When OFF: refuse to extract media or open URLs. Do NOT close
+  // the sender tab (the user wants to keep reading it). Do NOT
+  // fetch the syndication API. (No phantom operations.)
+  // ============================================================
+  if(msg && (msg.action === 'extractMedia' || msg.action === 'openUrls')){
+    isEnabled().then((enabled) => {
+      if(!enabled){
+        sendResponse({ success: false, disabled: true });
+        return;
+      }
+      handleMediaMessage(msg, sender, sendResponse);
+    });
+    return true; // keep channel open for async sendResponse
+  }
+
+  // Other messages (e.g. stateChanged) are handled by the earlier
+  // listener above; nothing to do here.
+});
+
+// Actual media-handling logic, factored out so the gate stays clean.
+function handleMediaMessage(msg, sender, sendResponse){
   // Primary path: content script asks us to extract media for a tweet ID.
   if(msg.action === 'extractMedia' && msg.id){
     if(!shouldProcess(msg.id)){
       // Already handled recently. Tell the content script "success but
       // deduped" so it neither closes the tab nor runs fallback.
       sendResponse({ success: true, deduped: true });
-      return false;
+      return;
     }
     extractMediaUrls(msg.id)
       .then(urls => {
@@ -174,7 +246,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
       })
       .catch(() => sendResponse({ success: false }));
-    return true; // keep the message channel open for async sendResponse
+    return;
   }
 
   // Fallback path: content script collected image URLs from the DOM
@@ -186,7 +258,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         chrome.tabs.remove(sender.tab.id).catch(()=>{});
       }, CLOSE_DELAY_MS);
     }
-    return false;
+    sendResponse({ success: true });
+    return;
   }
-});
+
+  // Unknown action — respond false so the content script can fall back.
+  sendResponse({ success: false });
+}
 })();

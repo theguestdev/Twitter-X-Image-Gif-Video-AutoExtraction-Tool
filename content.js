@@ -24,6 +24,38 @@
 if(window.__twMediaOrig) return;
 window.__twMediaOrig = true;
 
+// ============================================================
+// ON/OFF GATE (defensive)
+// ============================================================
+//
+// The background is the authoritative gate and will refuse messages
+// when disabled. This is a SECONDARY check: if the extension is OFF,
+// we don't even bother sending a message — saving a round-trip and
+// guaranteeing no phantom DOM observation / fallback timers start.
+//
+// We re-check on every tweet navigation (handleTweet), not just at
+// script init, so toggling OFF mid-session stops further auto-opens
+// on the next SPA navigation.
+//
+// Default on first install: enabled = true (matches v1.7 behavior).
+const STORAGE_KEY = 'enabled';
+const DEFAULT_ENABLED = true;
+
+function readEnabled(){
+  return new Promise((resolve) => {
+    try{
+      chrome.storage.local.get([STORAGE_KEY], (res) => {
+        const v = res && typeof res[STORAGE_KEY] === 'boolean'
+          ? res[STORAGE_KEY]
+          : DEFAULT_ENABLED;
+        resolve(v);
+      });
+    }catch(e){
+      resolve(DEFAULT_ENABLED);
+    }
+  });
+}
+
 let lastPath = location.pathname;
 
 // Extract the tweet ID from a URL path like /username/status/12345/photo/1.
@@ -108,32 +140,46 @@ function imageFallback(){
 // `isInitial` distinguishes a full page load (where closing the tweet tab
 // afterwards is the intended workflow) from an in-app SPA navigation (where
 // closing the tab would destroy the user's Twitter session).
+//
+// GATE: if the extension is disabled (per chrome.storage), do nothing.
+// No message is sent, no fallback runs, no MutationObserver is set up.
 function handleTweet(id, isInitial){
-  try{
-    chrome.runtime.sendMessage(
-      { action: 'extractMedia', id },
-      (resp) => {
-        if(chrome.runtime.lastError || !resp){
-          // Background didn't respond (service worker restart, etc.) — fall back.
-          imageFallback();
-          return;
+  readEnabled().then((enabled) => {
+    if(!enabled) return; // hard stop — no phantom operations
+
+    try{
+      chrome.runtime.sendMessage(
+        { action: 'extractMedia', id },
+        (resp) => {
+          if(chrome.runtime.lastError || !resp){
+            // Background didn't respond (service worker restart, etc.) — fall back.
+            imageFallback();
+            return;
+          }
+          if(resp.deduped){
+            // Recently processed by the background — leave the tab open, do nothing.
+            return;
+          }
+          if(resp.disabled){
+            // Background refused because extension is OFF. Do nothing.
+            // (This branch is the safety net for the race where the flag
+            // flipped between our readEnabled() check and the message
+            // round-trip.)
+            return;
+          }
+          if(!resp.success){
+            // Syndication API failed — try DOM image fallback.
+            imageFallback();
+            return;
+          }
+          // Success: the background has fired tab creation in parallel and
+          // will close this tab directly. Nothing to do here.
         }
-        if(resp.deduped){
-          // Recently processed by the background — leave the tab open, do nothing.
-          return;
-        }
-        if(!resp.success){
-          // Syndication API failed — try DOM image fallback.
-          imageFallback();
-          return;
-        }
-        // Success: the background has fired tab creation in parallel and
-        // will close this tab directly. Nothing to do here.
-      }
-    );
-  }catch(e){
-    imageFallback();
-  }
+      );
+    }catch(e){
+      imageFallback();
+    }
+  });
 }
 
 // Called from SPA navigation hooks. Skips if the path hasn't actually
