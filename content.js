@@ -13,10 +13,10 @@
 // only source for video URLs.
 //
 // Performance design:
-//   - The background closes the tweet tab directly; no closeTab message
-//     round-trip from here.
+//   - The background closes the tweet tab directly (only on initial page
+//     load, NOT on SPA navigation — see isInitial flag below).
 //   - On success, this script does nothing — the background handles tab
-//     lifecycle. No setTimeout, no extra messages.
+//     lifecycle.
 //   - Fallback only runs if the background reports failure.
 (function(){
 'use strict';
@@ -92,13 +92,16 @@ function collectImageUrls(){
 // image is present, sends the URLs to the background to be opened in
 // background tabs. Gives up silently after 5 seconds if no images appear.
 //
+// `isInitial` is forwarded to the background so it can apply the same
+// tab-close policy (close on initial load, keep open on SPA nav).
+//
 // IMPORTANT: this fallback is image-only. We deliberately do not attempt to
 // extract video URLs from <video> or <source> elements — on modern X those
 // are frequently placeholder/preview/HLS URLs and would yield wrong media.
-function imageFallback(){
+function imageFallback(isInitial){
   if(!document.body){
     // body not ready yet (we run at document_start); retry on next frame.
-    requestAnimationFrame(imageFallback);
+    requestAnimationFrame(() => imageFallback(isInitial));
     return;
   }
 
@@ -114,7 +117,7 @@ function imageFallback(){
       // Send URLs to the background for reliable tab creation
       // (window.open from content scripts can be blocked by popup blockers).
       try{
-        chrome.runtime.sendMessage({ action: 'openUrls', urls });
+        chrome.runtime.sendMessage({ action: 'openUrls', urls, isInitial });
       }catch(e){
         // Last-resort: window.open
         for(const u of urls){
@@ -137,9 +140,11 @@ function imageFallback(){
 }
 
 // Ask the background to extract and open media for the given tweet ID.
+//
 // `isInitial` distinguishes a full page load (where closing the tweet tab
 // afterwards is the intended workflow) from an in-app SPA navigation (where
-// closing the tab would destroy the user's Twitter session).
+// closing the tab would destroy the user's Twitter session). The background
+// reads this flag to decide whether to close the sender tab.
 //
 // GATE: if the extension is disabled (per chrome.storage), do nothing.
 // No message is sent, no fallback runs, no MutationObserver is set up.
@@ -149,11 +154,11 @@ function handleTweet(id, isInitial){
 
     try{
       chrome.runtime.sendMessage(
-        { action: 'extractMedia', id },
+        { action: 'extractMedia', id, isInitial },
         (resp) => {
           if(chrome.runtime.lastError || !resp){
             // Background didn't respond (service worker restart, etc.) — fall back.
-            imageFallback();
+            imageFallback(isInitial);
             return;
           }
           if(resp.deduped){
@@ -169,15 +174,15 @@ function handleTweet(id, isInitial){
           }
           if(!resp.success){
             // Syndication API failed — try DOM image fallback.
-            imageFallback();
+            imageFallback(isInitial);
             return;
           }
           // Success: the background has fired tab creation in parallel and
-          // will close this tab directly. Nothing to do here.
+          // will close this tab directly (only if isInitial). Nothing to do.
         }
       );
     }catch(e){
-      imageFallback();
+      imageFallback(isInitial);
     }
   });
 }
@@ -189,7 +194,7 @@ function check(){
   if(location.pathname === lastPath) return;
   lastPath = location.pathname;
   const id = idFromPath();
-  if(id) handleTweet(id, false); // SPA nav → never auto-close
+  if(id) handleTweet(id, false); // SPA nav — do not close the user's tab
 }
 
 // Hook SPA navigation. Twitter's router uses pushState/replaceState for

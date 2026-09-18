@@ -1,16 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Twitter Image -> Orig",
-  "version": "2.0.0",
-  "description": "Auto-opens Twitter/X images, videos, and GIFs at original quality. Includes a popup on/off switch.",
+  "version": "3.0.0",
+  "description": "Auto-downloads Twitter/X images, videos, and GIFs at original quality. v3.0: bulletproof download queue guarantees EVERY media item eventually completes — retries on transient errors, resumes on interrupt, reconciles on service worker restart, caps concurrency at 5 to avoid CDN throttling. No user auth is sent to fallback services.",
   "permissions": [
     "tabs",
-    "storage"
+    "storage",
+    "downloads",
+    "alarms",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "*://*.x.com/*",
     "*://*.twitter.com/*",
-    "*://cdn.syndication.twimg.com/*"
+    "*://*.twimg.com/*",
+    "*://*.fxtwitter.com/*",
+    "*://*.vxtwitter.com/*"
   ],
   "background": {
     "service_worker": "background.js"
