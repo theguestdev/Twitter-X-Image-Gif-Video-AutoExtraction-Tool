@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Twitter Image -> Orig",
+  "name": "Twitter Media Downloader",
   "version": "3.0.0",
-  "description": "Auto-downloads Twitter/X images, videos, and GIFs at original quality. v3.0: bulletproof download queue guarantees EVERY media item eventually completes — retries on transient errors, resumes on interrupt, reconciles on service worker restart, caps concurrency at 5 to avoid CDN throttling. No user auth is sent to fallback services.",
+  "description": "",
   "permissions": [
     "tabs",
     "storage",
